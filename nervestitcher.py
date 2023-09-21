@@ -1,27 +1,18 @@
 import superpoint
+import superglue
 import cv2
 import torch
-import matplotlib.pyplot as plt
-import code
 import numpy
 import config
 from os import listdir
-from os.path import join, splitext, expanduser
+from os.path import join, splitext
 from itertools import islice
 
-
+torch.set_grad_enabled(False)
 superpoint = superpoint.SuperPoint()
-
-
-def split_coordinates(coordinates: torch.Tensor):
-    coord_split = []
-    last_index = 0
-    for i in range(1, len(coordinates) - 1):
-        if coordinates[i - 1][0] != coordinates[i][0]:
-            coord_split.append(coordinates[last_index:i])
-            last_index = i
-    coord_split.append(coordinates[last_index:])
-    return coord_split
+superpoint.load_weights("./weights/superpoint.pth")
+superglue = superglue.SuperGlue()
+superglue.load_weights("./weights/superglue.pth")
 
 
 def load_images_in_directory(
@@ -38,7 +29,7 @@ def load_images_in_directory(
 
 def preprocess_images(images: numpy.ndarray):
     average = numpy.average(images, axis=0)
-    return images / average
+    return (images / average) * numpy.average(average)
 
 
 def chunked(iterable, size):

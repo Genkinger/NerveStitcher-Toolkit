@@ -1,7 +1,5 @@
-from pathlib import Path
 import torch
 from torch import nn
-from matplotlib import pyplot as plt
 import config
 
 
@@ -39,6 +37,8 @@ class SuperPoint(nn.Module):
         super().__init__()
         self.device = device
 
+        self.descriptor_dimensions = descriptor_dimensions
+
         self.relu = nn.ReLU(inplace=True)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         c1, c2, c3, c4, c5 = 64, 64, 128, 128, 256
@@ -56,14 +56,19 @@ class SuperPoint(nn.Module):
         self.convPb = nn.Conv2d(c5, 65, kernel_size=1, stride=1, padding=0)
 
         self.convDa = nn.Conv2d(c4, c5, kernel_size=3, stride=1, padding=1)
-        self.convDb = nn.Conv2d(c5, descriptor_dimensions, kernel_size=1, stride=1, padding=0)
+        self.convDb = nn.Conv2d(c5, self.descriptor_dimensions, kernel_size=1, stride=1, padding=0)
 
     def load_weights(self, path: str):
         load_result = torch.load(path)
         self.load_state_dict(load_result)
         print("[INFO]: Loaded SuperPoint Weights.")
 
-    def forward(self, input: torch.Tensor, nms_radius: int = config.NON_MAXIMUM_SUPPRESSION_RADIUS):
+    def forward(
+        self,
+        input: torch.Tensor,
+        score_threshold: float = config.SCORE_THRESHOLD,
+        nms_radius: int = config.NON_MAXIMUM_SUPPRESSION_RADIUS,
+    ):
         x = self.relu(self.conv1a(input))
         x = self.relu(self.conv1b(x))
         x = self.pool(x)
@@ -89,21 +94,43 @@ class SuperPoint(nn.Module):
         )
         scores = non_maximum_suppression(scores, nms_radius)
 
-        # Compute the dense descriptors
+        coordinates = [torch.nonzero(score > score_threshold).flip(dims=[1]) for score in scores]
+        scores_keep = [scores[i, coord[:, 1], coord[:, 0]] for i, coord in enumerate(coordinates)]
+
         cDa = self.relu(self.convDa(x))
         descriptors = self.convDb(cDa)
         descriptors = torch.nn.functional.normalize(descriptors, p=2, dim=1)
 
+        # Sample the descriptors here
+        # NOTE(Leah): this is my own implementation. It would be wise to compare it to the reference implementation
+
         input_batch_size, input_channels, input_height, input_width = input.shape
-        identity_transform = torch.Tensor([[1, 0, 0], [0, 1, 0]])
-        identity_transform = torch.stack([identity_transform for i in range(input_batch_size)])
-        sampling_grid = torch.nn.functional.affine_grid(
-            identity_transform, [input_batch_size, input_channels, input_height, input_width]
-        ).to(self.device)
+        descriptor_samples = []
+        for coords, descriptor in zip(coordinates, descriptors):
+            sample = torch.nn.functional.grid_sample(
+                descriptor[None],
+                (coords / torch.Tensor([input_width, input_height]) * 2.0 - 1.0).view(1, 1, -1, 2),
+                mode="bilinear",
+            )
+            sample = sample.reshape(1, self.descriptor_dimensions, -1)
+            sample = torch.nn.functional.normalize(sample, p=2, dim=1)
+            descriptor_samples.append(sample[0])
 
-        descriptors_upsampled = torch.nn.functional.grid_sample(
-            descriptors, sampling_grid, mode="bilinear", align_corners=False
-        )
-        descriptors_upsampled = torch.nn.functional.normalize(descriptors_upsampled)
+        # NOTE(Leah): same sampling but inefficient
+        # input_batch_size, input_channels, input_height, input_width = input.shape
+        # identity_transform = torch.Tensor([[1, 0, 0], [0, 1, 0]])
+        # identity_transform = torch.stack([identity_transform for i in range(input_batch_size)])
+        # sampling_grid = torch.nn.functional.affine_grid(
+        #     identity_transform, [input_batch_size, input_channels, input_height, input_width]
+        # ).to(self.device)
 
-        return scores, descriptors_upsampled
+        # descriptors_upsampled = torch.nn.functional.grid_sample(
+        #     descriptors, sampling_grid, mode="bilinear", align_corners=False
+        # )
+        # descriptors_upsampled = torch.nn.functional.normalize(descriptors_upsampled)
+
+        # descriptor_samples = []
+        # for coords, descriptor in zip(coordinates, descriptors_upsampled):
+        #     descriptor_samples.append(descriptor[:, coords[:, 1], coords[:, 0]])
+
+        return coordinates, scores_keep, descriptor_samples
