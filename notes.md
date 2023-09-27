@@ -1,8 +1,10 @@
-# SuperGlue
-- Welche inputs erwartet superglue?
-  - Koordinaten (Keypoints) in der form (x,y)
-  - Scores als einfacher 1d tensor der selben laenge
-  - descriptoren der form [b,c,-1] oder so? <<<< UNSICHER
-
-# SuperPoint
-- Descriptor sampling 
+# TODOS
+- Artificial SNP Nerve Image generation
+- Augmentation and Datapoint gathering via SuperPoint
+- Transfer knowledge to real world datasets
+- N vs. N Matching of Dataset
+- Match Matrix analysis
+- Transform analysis
+- Temporal Fusion implementation
+- N vs. N Fusion implementation
+- GUI
