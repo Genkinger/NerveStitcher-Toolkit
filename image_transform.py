@@ -2,14 +2,6 @@ import cv2
 import numpy
 
 
-def apply_rotation():
-    pass
-
-
-def apply_translation(image: numpy.ndarray, x: float, y: float):
-    pass
-
-
 def apply_gaussian_noise(mean, var, image):
     height, width = image.shape
     random = numpy.random.normal(mean, var**0.5, (height, width))

@@ -25,7 +25,7 @@ def load_images_in_directory(
         join(directory, path) for path in listdir(directory) if splitext(path)[1][1:] in extensions
     ]
     paths.sort()
-    return numpy.array([cv2.imread(path, cv2.IMREAD_GRAYSCALE) / 255.0 for path in paths])
+    return [cv2.imread(path, cv2.IMREAD_GRAYSCALE) / 255.0 for path in paths]
 
 
 def preprocess_images(images: numpy.ndarray):
@@ -47,8 +47,6 @@ def viz_coordinates(image, coordinates, scores):
     plt.imshow(img, cmap="Greys_r")
     plt.scatter(coords[:, 0], coords[:, 1], s=scores * 5, c="magenta")
     plt.show()
-
-    code.interact(local=locals())
 
 
 def viz_matches(image_a, image_b, coordinates_a, coordinates_b):
