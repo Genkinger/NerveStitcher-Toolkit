@@ -68,29 +68,29 @@ def generate_interest_point_data_chunked(greyscale_image_list, chunk_size=50):
     return coordinates, scores, descriptors
 
 
-def generate_matching_data_temporal(greyscale_image_list, coordinates, scores, descriptors):
-    image_count = len(greyscale_image_list)
-    index_pairs = list(zip(range(image_count - 1), range(1, image_count)))
-    matching_coordinates = []
-    for index_pair in index_pairs:
-        image_a = torch.from_numpy(greyscale_image_list[index_pair[0]]).float()[None][None]
-        image_b = torch.from_numpy(greyscale_image_list[index_pair[1]]).float()[None][None]
-        indices_a, indices_b, scores_a, scores_b = ns.superglue(
-            image_a,
-            coordinates[index_pair[0]][None],
-            scores[index_pair[0]][None],
-            descriptors[index_pair[0]][None],
-            image_b,
-            coordinates[index_pair[1]][None],
-            scores[index_pair[1]][None],
-            descriptors[index_pair[1]][None],
-            ns.config.MATCHING_THRESHOLD,
-        )
-        valid = indices_a[0] > -1
-        coordinates_a = coordinates[index_pair[0]][valid]
-        coordinates_b = coordinates[index_pair[1]][indices_a[0][valid]]
-        matching_coordinates.append((coordinates_a.cpu().numpy(), coordinates_b.cpu().numpy()))
-    return matching_coordinates, index_pairs
+# def generate_matching_data_temporal(greyscale_image_list, coordinates, scores, descriptors):
+#     image_count = len(greyscale_image_list)
+#     index_pairs = list(zip(range(image_count - 1), range(1, image_count)))
+#     matching_coordinates = []
+#     for index_pair in index_pairs:
+#         image_a = torch.from_numpy(greyscale_image_list[index_pair[0]]).float()[None][None]
+#         image_b = torch.from_numpy(greyscale_image_list[index_pair[1]]).float()[None][None]
+#         indices_a, indices_b, scores_a, scores_b = ns.superglue(
+#             image_a,
+#             coordinates[index_pair[0]][None],
+#             scores[index_pair[0]][None],
+#             descriptors[index_pair[0]][None],
+#             image_b,
+#             coordinates[index_pair[1]][None],
+#             scores[index_pair[1]][None],
+#             descriptors[index_pair[1]][None],
+#             ns.config.MATCHING_THRESHOLD,
+#         )
+#         valid = indices_a[0] > -1
+#         coordinates_a = coordinates[index_pair[0]][valid]
+#         coordinates_b = coordinates[index_pair[1]][indices_a[0][valid]]
+#         matching_coordinates.append((coordinates_a.cpu().numpy(), coordinates_b.cpu().numpy()))
+#     return matching_coordinates, index_pairs
 
 
 def generate_local_transforms_from_coordinate_pair_list(coordinate_pair_list):
@@ -102,4 +102,46 @@ def generate_local_transforms_from_coordinate_pair_list(coordinate_pair_list):
 
 
 def generate_matching_data_n_vs_n(greyscale_image_list, coordinates, scores, descriptors):
-    pass
+    image_count = len(greyscale_image_list)
+
+    adjacency_matrix = numpy.full((image_count, image_count), None)
+
+    for i in range(image_count):
+        for j in range(i + 1, image_count):
+            print(f"Matching {i} against {j}...")
+            image_a = greyscale_image_list[i]
+            image_b = greyscale_image_list[j]
+            image_a = torch.from_numpy(image_a).float()[None][None]
+            image_b = torch.from_numpy(image_b).float()[None][None]
+            indices_a, indices_b, scores_a, scores_b = ns.superglue(
+                image_a,
+                coordinates[i][None],
+                scores[i][None],
+                descriptors[i][None],
+                image_b,
+                coordinates[j][None],
+                scores[j][None],
+                descriptors[j][None],
+                config.MATCHING_THRESHOLD,
+            )
+            valid = indices_a[0] > -1
+            coordinates_a = coordinates[i][valid]
+            coordinates_b = coordinates[j][indices_a[0][valid]]
+            transform, _ = cv2.estimateAffinePartial2D(
+                coordinates_a.cpu().numpy(), coordinates_b.cpu().numpy()
+            )
+            if transform is not None:
+                adjacency_matrix[i][j] = numpy.array([transform[0][2], transform[1][2]])
+    return adjacency_matrix
+
+
+def save_adjacency_matrix(path, adjacency_matrix):
+    with open(path, "wb+") as picklefile:
+        pickle.dump(adjacency_matrix, picklefile)
+
+
+def load_adjacency_matrix(path):
+    adjacency_matrix = None
+    with open(path, "rb") as picklefile:
+        adjacency_matrix = pickle.load(picklefile)
+    return adjacency_matrix
