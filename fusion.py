@@ -16,10 +16,6 @@ def generate_cos2_weight_image(width: int, height: int):
     return image
 
 
-def fuse(image_list, absolute_positions):
-    pass
-
-
 def save_interest_point_data(path, coordinates, scores, descriptors):
     with open(path, "wb+") as picklefile:
         pickle.dump(coordinates, picklefile)
@@ -42,7 +38,8 @@ def generate_interest_point_data(greyscale_image_list, threshold=config.SCORE_TH
     coordinates = []
     scores = []
     descriptors = []
-    for image_tensor in image_tensors:
+    for i, image_tensor in enumerate(image_tensors):
+        print(f"Generating interestpoint data {i}/{len(image_tensors)}")
         c, s, d = ns.superpoint(image_tensor, score_threshold=threshold)
         coordinates.extend(c)
         scores.extend(s)
@@ -68,31 +65,6 @@ def generate_interest_point_data_chunked(greyscale_image_list, chunk_size=50):
     return coordinates, scores, descriptors
 
 
-# def generate_matching_data_temporal(greyscale_image_list, coordinates, scores, descriptors):
-#     image_count = len(greyscale_image_list)
-#     index_pairs = list(zip(range(image_count - 1), range(1, image_count)))
-#     matching_coordinates = []
-#     for index_pair in index_pairs:
-#         image_a = torch.from_numpy(greyscale_image_list[index_pair[0]]).float()[None][None]
-#         image_b = torch.from_numpy(greyscale_image_list[index_pair[1]]).float()[None][None]
-#         indices_a, indices_b, scores_a, scores_b = ns.superglue(
-#             image_a,
-#             coordinates[index_pair[0]][None],
-#             scores[index_pair[0]][None],
-#             descriptors[index_pair[0]][None],
-#             image_b,
-#             coordinates[index_pair[1]][None],
-#             scores[index_pair[1]][None],
-#             descriptors[index_pair[1]][None],
-#             ns.config.MATCHING_THRESHOLD,
-#         )
-#         valid = indices_a[0] > -1
-#         coordinates_a = coordinates[index_pair[0]][valid]
-#         coordinates_b = coordinates[index_pair[1]][indices_a[0][valid]]
-#         matching_coordinates.append((coordinates_a.cpu().numpy(), coordinates_b.cpu().numpy()))
-#     return matching_coordinates, index_pairs
-
-
 def generate_local_transforms_from_coordinate_pair_list(coordinate_pair_list):
     transforms = []
     for coordinate_pair in coordinate_pair_list:
@@ -101,7 +73,9 @@ def generate_local_transforms_from_coordinate_pair_list(coordinate_pair_list):
     return transforms
 
 
-def generate_matching_data_n_vs_n(greyscale_image_list, coordinates, scores, descriptors):
+def generate_adjacency_matrix_full(
+    greyscale_image_list, coordinates, scores, descriptors, threshold=config.MATCHING_THRESHOLD
+):
     image_count = len(greyscale_image_list)
 
     adjacency_matrix = numpy.full((image_count, image_count), None)
@@ -122,11 +96,19 @@ def generate_matching_data_n_vs_n(greyscale_image_list, coordinates, scores, des
                 coordinates[j][None],
                 scores[j][None],
                 descriptors[j][None],
-                config.MATCHING_THRESHOLD,
+                threshold,
             )
             valid = indices_a[0] > -1
             coordinates_a = coordinates[i][valid]
             coordinates_b = coordinates[j][indices_a[0][valid]]
+
+            dists = numpy.linalg.norm((coordinates_b - coordinates_a), ord=2, axis=1)
+            mean = numpy.mean(dists)
+            stddev = numpy.std(dists)
+            z = (dists - mean) / stddev
+            coordinates_a = numpy.delete(coordinates_a, z > 0, axis=0)
+            coordinates_b = numpy.delete(coordinates_b, z > 0, axis=0)
+
             transform, _ = cv2.estimateAffinePartial2D(
                 coordinates_a.cpu().numpy(), coordinates_b.cpu().numpy()
             )
@@ -145,3 +127,64 @@ def load_adjacency_matrix(path):
     with open(path, "rb") as picklefile:
         adjacency_matrix = pickle.load(picklefile)
     return adjacency_matrix
+
+
+def add_image_at_offset(base, image, offset):
+    base[
+        int(offset[1]) : int(offset[1]) + image.shape[0],
+        int(offset[0]) : int(offset[0]) + image.shape[1],
+    ] += image
+
+
+def place_image_at_offset(base, image, offset):
+    base[
+        int(offset[1]) : int(offset[1]) + image.shape[0],
+        int(offset[0]) : int(offset[0]) + image.shape[1],
+    ] = image
+
+
+def solve_adjacency_matrix(adjacency_matrix, image_width=384, image_height=384):
+    rows, columns = adjacency_matrix.shape
+    coeffs = [numpy.zeros(columns)]
+    coeffs[0][0] = 1
+    bxs, bys = [0], [0]
+    for i in range(rows):
+        for j in range(columns):
+            element = adjacency_matrix[i, j]
+            if element is None:
+                continue
+            element = element.astype(numpy.float32)
+            if numpy.count_nonzero(element > min(image_height, image_width)) > 0:
+                continue
+            coeff_row = numpy.zeros(columns)
+            coeff_row[i] = 1
+            coeff_row[j] = -1
+            coeffs.append(coeff_row)
+            bxs.append(element[0])
+            bys.append(element[1])
+
+    positions_x, _, _, _ = numpy.linalg.lstsq(numpy.stack(coeffs), bxs, rcond=None)
+    positions_y, _, _, _ = numpy.linalg.lstsq(numpy.stack(coeffs), bys, rcond=None)
+    return positions_x, positions_y
+
+
+def fuse(image_list, positions_x, positions_y):
+    min_x = numpy.min(positions_x)
+    min_y = numpy.min(positions_y)
+    max_x = numpy.max(positions_x)
+    max_y = numpy.max(positions_y)
+    width = int(max_x - min_x + image_list[0].shape[1])
+    height = int(max_y - min_y + image_list[0].shape[0])
+    positions_x -= min_x
+    positions_y -= min_y
+    canvas = numpy.zeros((height, width))
+    weight_accumulator = numpy.zeros_like(canvas)
+    weight_image = generate_cos2_weight_image(image_list[0].shape[1], image_list[0].shape[0])
+    for i in range(len(image_list)):
+        offset = (positions_x[i], positions_y[i])
+        # place_image_at_offset(canvas, image_list[i], offset)
+        add_image_at_offset(canvas, image_list[i] * weight_image, offset)
+        add_image_at_offset(weight_accumulator, weight_image, offset)
+    weight_accumulator[numpy.nonzero(weight_accumulator == 0)] = 1.0
+    canvas /= weight_accumulator
+    return canvas
