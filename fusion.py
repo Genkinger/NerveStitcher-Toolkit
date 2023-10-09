@@ -4,6 +4,7 @@ import torch
 import pickle
 import cv2
 import config
+import code
 
 
 def generate_cos2_weight_image(width: int, height: int):
@@ -114,6 +115,56 @@ def generate_adjacency_matrix_full(
             )
             if transform is not None:
                 adjacency_matrix[i][j] = numpy.array([transform[0][2], transform[1][2]])
+    return adjacency_matrix
+
+
+def generate_adjacency_matrix_reduced(
+    greyscale_image_list, coordinates, scores, descriptors, threshold=config.MATCHING_THRESHOLD
+):
+    image_count = len(greyscale_image_list)
+
+    adjacency_matrix = numpy.full((image_count, image_count), None)
+    diagonal_count = 3
+
+    for i in range(image_count):
+        for j in range(i + 1, min(i + 1 + diagonal_count, image_count)):
+            print(f"Matching {i} against {j}...")
+            image_a = greyscale_image_list[i]
+            image_b = greyscale_image_list[j]
+            image_a = torch.from_numpy(image_a).float()[None][None]
+            image_b = torch.from_numpy(image_b).float()[None][None]
+            indices_a, indices_b, scores_a, scores_b = ns.superglue(
+                image_a,
+                coordinates[i][None],
+                scores[i][None],
+                descriptors[i][None],
+                image_b,
+                coordinates[j][None],
+                scores[j][None],
+                descriptors[j][None],
+                threshold,
+            )
+            valid = indices_a[0] > -1
+            coordinates_a = coordinates[i][valid]
+            coordinates_b = coordinates[j][indices_a[0][valid]]
+            match_count_pre = len(coordinates_a)
+            dists = numpy.linalg.norm((coordinates_b - coordinates_a), ord=2, axis=1)
+            mean = numpy.mean(dists)
+            stddev = numpy.std(dists)
+            z = (dists - mean) / stddev
+            coordinates_a = numpy.delete(coordinates_a, z > 0, axis=0)
+            coordinates_b = numpy.delete(coordinates_b, z > 0, axis=0)
+            match_count_post = len(coordinates_a)
+            transform, _ = cv2.estimateAffinePartial2D(
+                coordinates_a.cpu().numpy(), coordinates_b.cpu().numpy()
+            )
+            adjacency_matrix[i][j] = (
+                transform,
+                match_count_pre,
+                match_count_post,
+                scores_a[0].cpu().numpy(),
+                scores_b[0].cpu().numpy(),
+            )
     return adjacency_matrix
 
 
