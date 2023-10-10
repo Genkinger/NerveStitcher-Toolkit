@@ -164,6 +164,8 @@ def generate_adjacency_matrix_reduced(
                 match_count_post,
                 scores_a[0].cpu().numpy(),
                 scores_b[0].cpu().numpy(),
+                coordinates_a.cpu().numpy(),
+                coordinates_b.cpu().numpy(),
             )
     return adjacency_matrix
 
