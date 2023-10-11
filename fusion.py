@@ -4,7 +4,9 @@ import torch
 import pickle
 import cv2
 import config
-import code
+import log
+
+logger = log.get_logger(__name__)
 
 
 def generate_cos2_weight_image(width: int, height: int):
@@ -40,25 +42,8 @@ def generate_interest_point_data(greyscale_image_list, threshold=config.SCORE_TH
     scores = []
     descriptors = []
     for i, image_tensor in enumerate(image_tensors):
-        print(f"Generating interestpoint data {i}/{len(image_tensors)}")
+        logger.info(f"Generating interestpoint data {i+1}/{len(image_tensors)}")
         c, s, d = ns.superpoint(image_tensor, score_threshold=threshold)
-        coordinates.extend(c)
-        scores.extend(s)
-        descriptors.extend(d)
-
-    return coordinates, scores, descriptors
-
-
-def generate_interest_point_data_chunked(greyscale_image_list, chunk_size=50):
-    image_tensors = torch.stack(
-        [torch.from_numpy(image).float()[None] for image in greyscale_image_list]
-    )
-
-    coordinates = []
-    scores = []
-    descriptors = []
-    for chunk in ns.chunked(image_tensors, chunk_size):
-        c, s, d = ns.superpoint(chunk)
         coordinates.extend(c)
         scores.extend(s)
         descriptors.extend(d)
@@ -74,112 +59,90 @@ def generate_local_transforms_from_coordinate_pair_list(coordinate_pair_list):
     return transforms
 
 
-def generate_adjacency_matrix_full(
-    greyscale_image_list, coordinates, scores, descriptors, threshold=config.MATCHING_THRESHOLD
+def match_images(
+    image_a,
+    image_b,
+    coordinates_a,
+    coordinates_b,
+    scores_a,
+    scores_b,
+    descriptors_a,
+    descriptors_b,
+    threshold=config.MATCHING_THRESHOLD,
+):
+    image_a = torch.from_numpy(image_a).float()[None][None]
+    image_b = torch.from_numpy(image_b).float()[None][None]
+    indices_a, indices_b, scores_a, scores_b = ns.superglue(
+        image_a,
+        coordinates_a[None],
+        scores_a[None],
+        descriptors_a[None],
+        image_b,
+        coordinates_b[None],
+        scores_b[None],
+        descriptors_b[None],
+        threshold,
+    )
+    valid = indices_a[0] > -1
+    coordinates_a_out = coordinates_a[valid]
+    coordinates_b_out = coordinates_b[indices_a[0][valid]]
+    return coordinates_a_out, coordinates_b_out, scores_a, scores_b
+
+
+def generate_raw_match_matrix(
+    greyscale_image_list,
+    coordinates,
+    scores,
+    descriptors,
+    diagonals=0,
+    threshold=config.MATCHING_THRESHOLD,
 ):
     image_count = len(greyscale_image_list)
-
-    adjacency_matrix = numpy.full((image_count, image_count), None)
-
-    for i in range(image_count):
-        for j in range(i + 1, image_count):
-            print(f"Matching {i} against {j}...")
-            image_a = greyscale_image_list[i]
-            image_b = greyscale_image_list[j]
-            image_a = torch.from_numpy(image_a).float()[None][None]
-            image_b = torch.from_numpy(image_b).float()[None][None]
-            indices_a, indices_b, scores_a, scores_b = ns.superglue(
-                image_a,
-                coordinates[i][None],
-                scores[i][None],
-                descriptors[i][None],
-                image_b,
-                coordinates[j][None],
-                scores[j][None],
-                descriptors[j][None],
-                threshold,
-            )
-            valid = indices_a[0] > -1
-            coordinates_a = coordinates[i][valid]
-            coordinates_b = coordinates[j][indices_a[0][valid]]
-
-            dists = numpy.linalg.norm((coordinates_b - coordinates_a), ord=2, axis=1)
-            mean = numpy.mean(dists)
-            stddev = numpy.std(dists)
-            z = (dists - mean) / stddev
-            coordinates_a = numpy.delete(coordinates_a, z > 0, axis=0)
-            coordinates_b = numpy.delete(coordinates_b, z > 0, axis=0)
-
-            transform, _ = cv2.estimateAffinePartial2D(
-                coordinates_a.cpu().numpy(), coordinates_b.cpu().numpy()
-            )
-            if transform is not None:
-                adjacency_matrix[i][j] = numpy.array([transform[0][2], transform[1][2]])
-    return adjacency_matrix
-
-
-def generate_adjacency_matrix_reduced(
-    greyscale_image_list, coordinates, scores, descriptors, threshold=config.MATCHING_THRESHOLD
-):
-    image_count = len(greyscale_image_list)
-
-    adjacency_matrix = numpy.full((image_count, image_count), None)
-    diagonal_count = 3
+    count = diagonals if diagonals > 0 else image_count
+    raw_match_matrix = numpy.full((image_count, image_count), None)
 
     for i in range(image_count):
-        for j in range(i + 1, min(i + 1 + diagonal_count, image_count)):
-            print(f"Matching {i} against {j}...")
-            image_a = greyscale_image_list[i]
-            image_b = greyscale_image_list[j]
-            image_a = torch.from_numpy(image_a).float()[None][None]
-            image_b = torch.from_numpy(image_b).float()[None][None]
-            indices_a, indices_b, scores_a, scores_b = ns.superglue(
-                image_a,
-                coordinates[i][None],
-                scores[i][None],
-                descriptors[i][None],
-                image_b,
-                coordinates[j][None],
-                scores[j][None],
-                descriptors[j][None],
-                threshold,
+        for j in range(i + 1, min(i + 1 + count, image_count)):
+            logger.info(f"Matching {i} against {j}")
+            coordinates_a, coordinates_b, scores_a, scores_b = match_images(
+                greyscale_image_list[i],
+                greyscale_image_list[j],
+                coordinates[i],
+                coordinates[j],
+                scores[i],
+                scores[j],
+                descriptors[i],
+                descriptors[j],
             )
-            valid = indices_a[0] > -1
-            coordinates_a = coordinates[i][valid]
-            coordinates_b = coordinates[j][indices_a[0][valid]]
-            match_count_pre = len(coordinates_a)
-            dists = numpy.linalg.norm((coordinates_b - coordinates_a), ord=2, axis=1)
-            mean = numpy.mean(dists)
-            stddev = numpy.std(dists)
-            z = (dists - mean) / stddev
-            coordinates_a = numpy.delete(coordinates_a, z > 0, axis=0)
-            coordinates_b = numpy.delete(coordinates_b, z > 0, axis=0)
-            match_count_post = len(coordinates_a)
-            transform, _ = cv2.estimateAffinePartial2D(
-                coordinates_a.cpu().numpy(), coordinates_b.cpu().numpy()
-            )
-            adjacency_matrix[i][j] = (
-                transform,
-                match_count_pre,
-                match_count_post,
-                scores_a[0].cpu().numpy(),
-                scores_b[0].cpu().numpy(),
-                coordinates_a.cpu().numpy(),
-                coordinates_b.cpu().numpy(),
-            )
-    return adjacency_matrix
+
+            raw_match_matrix[i][j] = (coordinates_a, coordinates_b, scores_a, scores_b)
+    return raw_match_matrix
 
 
-def save_adjacency_matrix(path, adjacency_matrix):
+def save_raw_match_matrix(path, raw_match_matrix):
     with open(path, "wb+") as picklefile:
-        pickle.dump(adjacency_matrix, picklefile)
+        pickle.dump(raw_match_matrix, picklefile)
 
 
-def load_adjacency_matrix(path):
-    adjacency_matrix = None
+def load_raw_match_matrix(path):
+    raw_match_matrix = None
     with open(path, "rb") as picklefile:
-        adjacency_matrix = pickle.load(picklefile)
-    return adjacency_matrix
+        raw_match_matrix = pickle.load(picklefile)
+    return raw_match_matrix
+
+
+def get_match_translation_matrix_from_raw_match_matrix(raw_match_matrix):
+    match_translation_matrix = numpy.full_like(raw_match_matrix, None)
+    for i in range(len(raw_match_matrix)):
+        for j in range(len(raw_match_matrix[0])):
+            data = raw_match_matrix[i, j]
+            if data is None:
+                continue
+            transform, _ = cv2.estimateAffinePartial2D(data[0], data[1])
+            if transform is None:
+                continue
+            match_translation_matrix[i, j] = numpy.array([transform[0, 2], transform[1, 2]])
+    return match_translation_matrix
 
 
 def add_image_at_offset(base, image, offset):
@@ -196,14 +159,14 @@ def place_image_at_offset(base, image, offset):
     ] = image
 
 
-def solve_adjacency_matrix(adjacency_matrix, image_width=384, image_height=384):
-    rows, columns = adjacency_matrix.shape
+def solve_match_translation_matrix(match_translation_matrix, image_width=384, image_height=384):
+    rows, columns = match_translation_matrix.shape
     coeffs = [numpy.zeros(columns)]
     coeffs[0][0] = 1
     bxs, bys = [0], [0]
     for i in range(rows):
         for j in range(columns):
-            element = adjacency_matrix[i, j]
+            element = match_translation_matrix[i, j]
             if element is None:
                 continue
             element = element.astype(numpy.float32)
