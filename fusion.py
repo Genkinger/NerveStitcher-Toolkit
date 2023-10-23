@@ -138,7 +138,8 @@ def get_match_translation_matrix_from_raw_match_matrix(raw_match_matrix):
             data = raw_match_matrix[i, j]
             if data is None:
                 continue
-            transform, _ = cv2.estimateAffinePartial2D(data[0], data[1])
+            logger.info(f"estimating partial affine transform between {i} and {j}")
+            transform, _ = cv2.estimateAffinePartial2D(data[0].cpu().numpy(), data[1].cpu().numpy())
             if transform is None:
                 continue
             match_translation_matrix[i, j] = numpy.array([transform[0, 2], transform[1, 2]])
@@ -178,9 +179,11 @@ def solve_match_translation_matrix(match_translation_matrix, image_width=384, im
             coeffs.append(coeff_row)
             bxs.append(element[0])
             bys.append(element[1])
-
-    positions_x, _, _, _ = numpy.linalg.lstsq(numpy.stack(coeffs), bxs, rcond=None)
-    positions_y, _, _, _ = numpy.linalg.lstsq(numpy.stack(coeffs), bys, rcond=None)
+    print(len(bxs))
+    logger.info("Solving Linear Equations...")
+    positions_x, _, _, _ = numpy.linalg.lstsq(numpy.stack(coeffs), bxs, rcond=-1)
+    positions_y, _, _, _ = numpy.linalg.lstsq(numpy.stack(coeffs), bys, rcond=-1)
+    logger.info("Solution Found")
     return positions_x, positions_y
 
 
@@ -194,13 +197,13 @@ def fuse(image_list, positions_x, positions_y):
     positions_x -= min_x
     positions_y -= min_y
     canvas = numpy.zeros((height, width))
-    weight_accumulator = numpy.zeros_like(canvas)
-    weight_image = generate_cos2_weight_image(image_list[0].shape[1], image_list[0].shape[0])
+    # weight_accumulator = numpy.zeros_like(canvas)
+    # weight_image = generate_cos2_weight_image(image_list[0].shape[1], image_list[0].shape[0])
     for i in range(len(image_list)):
         offset = (positions_x[i], positions_y[i])
-        # place_image_at_offset(canvas, image_list[i], offset)
-        add_image_at_offset(canvas, image_list[i] * weight_image, offset)
-        add_image_at_offset(weight_accumulator, weight_image, offset)
-    weight_accumulator[numpy.nonzero(weight_accumulator == 0)] = 1.0
-    canvas /= weight_accumulator
+        place_image_at_offset(canvas, image_list[i], offset)
+        # add_image_at_offset(canvas, image_list[i] * weight_image, offset)
+        # add_image_at_offset(weight_accumulator, weight_image, offset)
+    # weight_accumulator[numpy.nonzero(weight_accumulator == 0)] = 1.0
+    # canvas /= weight_accumulator
     return canvas

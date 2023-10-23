@@ -69,14 +69,15 @@ images = nervestitcher.preprocess_images(images)
     original_coordinates,
     artefact_coordinates,
     original_coordinates_retransformed,
-) = generate_superpoint_testing_data(images[0], 300, 300, movement)
+) = generate_superpoint_testing_data(images[10], 300, 300, movement)
 
 fig, ax = image_grid_with_coordinates(
-    [original_image_scan, artefacted_image_scan],
-    [original_coordinates, artefact_coordinates],
-    2,
+    [original_image_scan, artefacted_image_scan, artefacted_image_scan],
+    [original_coordinates, artefact_coordinates, original_coordinates_retransformed],
     1,
+    3,
     4,
+    ["magenta", "magenta", "cyan"],
 )
 
 fig2, _ = compare_coordinate_lists(

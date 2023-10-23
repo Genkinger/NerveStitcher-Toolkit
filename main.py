@@ -17,9 +17,9 @@ def cli():
     help="interestpoint score threshold (superpoint)",
 )
 @click.option("--preprocess", "-p", is_flag=True, default=True, help="do preprocessing step")
-@click.option("--images", "-i", "image_path")
-@click.option("--output", "-o", "output_path")
-def extract_interestpoints(image_path, output_path, preprocess, threshold):
+@click.option("--images", "-i", "image_path", required=True)
+@click.option("--output", "-o", "output_path", required=True)
+def extract_interest_points(image_path, output_path, preprocess, threshold):
     images = nervestitcher.load_images_in_directory(image_path)
     if preprocess:
         images = nervestitcher.preprocess_images(images)
@@ -32,9 +32,9 @@ def extract_interestpoints(image_path, output_path, preprocess, threshold):
 @click.option(
     "--threshold", default=config.MATCHING_THRESHOLD, help="matching threshold (superglue)"
 )
-@click.option("--images", "-i", "image_path")
-@click.option("--output", "-o", "output_path")
-@click.option("--interest-point-data", "-d", "interest_point_path")
+@click.option("--images", "-i", "image_path", required=True)
+@click.option("--output", "-o", "output_path", required=True)
+@click.option("--interest-point-data", "-d", "interest_point_path", required=True)
 def extract_match_data(image_path, interest_point_path, output_path, diagonals, threshold):
     images = nervestitcher.load_images_in_directory(image_path)
     data = fusion.load_interest_point_data(interest_point_path)
@@ -45,9 +45,9 @@ def extract_match_data(image_path, interest_point_path, output_path, diagonals, 
 
 
 @cli.command()
-@click.option("--images", "-i", "image_path")
-@click.option("--output", "-o", "output_path")
-@click.option("--match-data", "-d", "match_data_path")
+@click.option("--images", "-i", "image_path", required=True)
+@click.option("--output", "-o", "output_path", required=True)
+@click.option("--match-data", "-d", "match_data_path", required=True)
 @click.option("--preprocess", "-p", is_flag=True, default=True, help="do preprocessing step")
 def fuse(image_path, output_path, match_data_path, preprocess):
     images = nervestitcher.load_images_in_directory(image_path)
