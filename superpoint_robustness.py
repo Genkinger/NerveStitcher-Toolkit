@@ -4,6 +4,16 @@ import numpy as np
 from matplotlib import pyplot as plt
 import visualization
 import torch
+import code
+
+
+def calculate_distance_matrix(a1, a2):
+    matrix = np.full((len(a1), len(a2)), np.Inf)
+    for i in range(len(a1)):
+        for j in range(len(a2)):
+            matrix[i, j] = np.sqrt(((a1[i] - a2[j]) ** 2).sum())
+    return matrix
+
 
 scale = 0.75
 movements = [
@@ -31,7 +41,7 @@ image_collections = [
     for image in images
 ]
 
-superpoint_data = [
+transformed_superpoint_data = [
     [
         nervestitcher.superpoint(torch.from_numpy(image).float()[None][None])
         for image in image_collection
@@ -43,7 +53,7 @@ original_superpoint_data = []
 coordinate_embeddings = []
 for image in images:
     data = nervestitcher.superpoint(torch.from_numpy(image).float()[None][None])
-    coordinates, scores, descriptors = data
+    coordinates, _, _ = data
     embedding = np.zeros_like(image)
     coordinates = coordinates[0].cpu().numpy()
     embedding[coordinates[:, 1], coordinates[:, 0]] = 1
@@ -71,8 +81,26 @@ transformed_embeddings = [
 superpoint_data = [
     [original_data, transformed_data, retransformed_coordinates]
     for (original_data, transformed_data, retransformed_coordinates) in zip(
-        original_superpoint_data, superpoint_data, transformed_embeddings
+        original_superpoint_data, transformed_superpoint_data, transformed_embeddings
     )
 ]
 
 # TODO: Now we need to see how many points of the retransformed coordinates are contained within the transformed data. After that we need to compare the descriptors first by vector distance, then by SuperGlue
+
+for image_data in superpoint_data:
+    # Original Data is used only for Descriptor comparisons
+    original_data, transformed_data, retransformed_coordinates = image_data
+    for original_sample, transformed_sample, retransformed_coordinate_sample in zip(
+        original_data, transformed_data, retransformed_coordinates
+    ):
+        c_t = (
+            transformed_sample[0][0].cpu().numpy()
+        )  # coordinates as detected by superpoint in the transformed image scan
+        c_r = retransformed_coordinate_sample  # coordinates of the original image, transformed after the fact
+        acceptable_pixel_distance = 3
+        self_distance = calculate_distance_matrix(c_t, c_t)
+        plt.imshow(self_distance < 2)
+        plt.show()
+        matrix = calculate_distance_matrix(c_t, c_r)
+        plt.imshow(matrix < acceptable_pixel_distance)
+        plt.show()
