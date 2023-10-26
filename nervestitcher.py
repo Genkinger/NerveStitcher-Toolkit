@@ -1,4 +1,3 @@
-import code
 import superpoint
 import superglue
 import cv2
@@ -7,7 +6,6 @@ import numpy
 import config
 from os import listdir
 from os.path import join, splitext
-from itertools import islice
 
 torch.set_grad_enabled(False)
 superpoint = superpoint.SuperPoint()
@@ -29,9 +27,3 @@ def load_images_in_directory(
 def preprocess_images(images: numpy.ndarray):
     average = numpy.average(images, axis=0)
     return images / average  # * numpy.average(average)
-
-
-def chunked(iterable, size):
-    iterator = iter(iterable)
-    while batch := list(islice(iterator, size)):
-        yield batch

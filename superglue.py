@@ -2,6 +2,17 @@ from copy import deepcopy
 import torch
 from torch import nn
 import config
+from typing import NamedTuple
+import numpy
+from superpoint import SuperPointData
+
+
+class SuperGlueData(NamedTuple):
+    scores: numpy.ndarray
+    indices_a: numpy.ndarray
+    indices_b: numpy.ndarray
+    scores_a: numpy.ndarray
+    scores_b: numpy.ndarray
 
 
 def MLP(channels: list, do_bn=True):
@@ -17,9 +28,8 @@ def MLP(channels: list, do_bn=True):
     return nn.Sequential(*layers)
 
 
-def normalize_keypoints(kpts, image_shape):
+def normalize_keypoints(kpts, width, height):
     """Normalize keypoints locations based on image image_shape"""
-    _, _, height, width = image_shape
     one = kpts.new_tensor(1)
     size = torch.stack([one * width, one * height])[None]
     center = size / 2
@@ -182,27 +192,25 @@ class SuperGlue(nn.Module):
 
     def forward(
         self,
-        image_a: torch.Tensor,
-        coordinates_a: torch.Tensor,
-        scores_a: torch.Tensor,
-        descriptors_a: torch.Tensor,
-        image_b: torch.Tensor,
-        coordinates_b: torch.Tensor,
-        scores_b: torch.Tensor,
-        descriptors_b: torch.Tensor,
-        matching_threshold: float,
+        superpoint_data_a: SuperPointData,
+        superpoint_data_b: SuperPointData,
+        matching_threshold: float = config.MATCHING_THRESHOLD,
     ):
         """Run SuperGlue on a pair of keypoints and descriptors"""
-        desc0, desc1 = descriptors_a, descriptors_b
-        kpts0, kpts1 = coordinates_a, coordinates_b
+        """Assume only one image per batch, different options not supported at this time!"""
+
+        desc0 = torch.from_numpy(superpoint_data_a.descriptors[None])
+        desc1 = torch.from_numpy(superpoint_data_b.descriptors[None])
+        kpts0 = torch.from_numpy(superpoint_data_a.coordinates[None])
+        kpts1 = torch.from_numpy(superpoint_data_b.coordinates[None])
 
         # Keypoint normalization.
-        kpts0 = normalize_keypoints(kpts0, image_a.shape)
-        kpts1 = normalize_keypoints(kpts1, image_b.shape)
+        kpts0 = normalize_keypoints(kpts0, superpoint_data_a.width, superpoint_data_a.height)
+        kpts1 = normalize_keypoints(kpts1, superpoint_data_b.width, superpoint_data_b.height)
 
         # Keypoint MLP encoder.
-        enc0 = self.kenc(kpts0, scores_a)
-        enc1 = self.kenc(kpts1, scores_b)
+        enc0 = self.kenc(kpts0, torch.from_numpy(superpoint_data_a.scores[None]))
+        enc1 = self.kenc(kpts1, torch.from_numpy(superpoint_data_b.scores[None]))
         desc0 = desc0 + enc0
         desc1 = desc1 + enc1
 
@@ -237,4 +245,10 @@ class SuperGlue(nn.Module):
         indices0 = torch.where(valid0, indices0, indices0.new_tensor(-1))
         indices1 = torch.where(valid1, indices1, indices1.new_tensor(-1))
 
-        return indices0, indices1, mscores0, mscores1
+        return SuperGlueData(
+            scores[0].cpu().numpy(),
+            indices0[0].cpu().numpy(),
+            indices1[0].cpu().numpy(),
+            mscores0[0].cpu().numpy(),
+            mscores1[0].cpu().numpy(),
+        )

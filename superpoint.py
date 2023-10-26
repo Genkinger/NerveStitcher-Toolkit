@@ -1,6 +1,16 @@
 import torch
 from torch import nn
 import config
+from typing import NamedTuple
+import numpy
+
+
+class SuperPointData(NamedTuple):
+    coordinates: numpy.ndarray
+    scores: numpy.ndarray
+    descriptors: numpy.ndarray
+    width: int
+    height: int
 
 
 def non_maximum_suppression(scores, nms_radius: int):
@@ -31,12 +41,8 @@ class SuperPoint(nn.Module):
 
     """
 
-    def __init__(
-        self, descriptor_dimensions: int = config.DESCRIPTOR_DIMENSIONS, device: str = config.DEVICE
-    ):
+    def __init__(self, descriptor_dimensions: int = config.DESCRIPTOR_DIMENSIONS):
         super().__init__()
-        self.device = device
-
         self.descriptor_dimensions = descriptor_dimensions
 
         self.relu = nn.ReLU(inplace=True)
@@ -57,6 +63,7 @@ class SuperPoint(nn.Module):
 
         self.convDa = nn.Conv2d(c4, c5, kernel_size=3, stride=1, padding=1)
         self.convDb = nn.Conv2d(c5, self.descriptor_dimensions, kernel_size=1, stride=1, padding=0)
+        self.to(config.DEVICE)
 
     def load_weights(self, path: str):
         load_result = torch.load(path)
@@ -65,10 +72,15 @@ class SuperPoint(nn.Module):
 
     def forward(
         self,
-        input: torch.Tensor,
+        input: numpy.ndarray,
         score_threshold: float = config.SCORE_THRESHOLD,
         nms_radius: int = config.NON_MAXIMUM_SUPPRESSION_RADIUS,
     ):
+        assert (
+            len(input.shape) == 2
+        ), "Only single grayscale image inputs are supported at the moment!"
+        input = torch.from_numpy(input[None, None, :]).float()
+
         x = self.relu(self.conv1a(input))
         x = self.relu(self.conv1b(x))
         x = self.pool(x)
@@ -109,7 +121,10 @@ class SuperPoint(nn.Module):
         for coords, descriptor in zip(coordinates, descriptors):
             sample = torch.nn.functional.grid_sample(
                 descriptor[None],
-                (coords / torch.Tensor([input_width, input_height]) * 2.0 - 1.0).view(1, 1, -1, 2),
+                (
+                    coords / torch.tensor([input_width, input_height], device=config.DEVICE) * 2.0
+                    - 1.0
+                ).view(1, 1, -1, 2),
                 mode="bilinear",
             )
             sample = sample.reshape(1, self.descriptor_dimensions, -1)
@@ -133,4 +148,10 @@ class SuperPoint(nn.Module):
         # for coords, descriptor in zip(coordinates, descriptors_upsampled):
         #     descriptor_samples.append(descriptor[:, coords[:, 1], coords[:, 0]])
 
-        return coordinates, scores_keep, descriptor_samples
+        return SuperPointData(
+            coordinates[0].cpu().numpy(),
+            scores_keep[0].cpu().numpy(),
+            descriptor_samples[0].cpu().numpy(),
+            input_width,
+            input_height,
+        )
