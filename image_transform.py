@@ -8,7 +8,9 @@ def apply_gaussian_noise(mean, var, image):
     return numpy.clip(random + image, 0, 1)
 
 
-def apply_artefact(source_image: numpy.ndarray, width: int, height: int, movement) -> numpy.ndarray:
+def apply_artefact(
+    source_image: numpy.ndarray, width: int, height: int, movement, out_type=numpy.float32
+) -> numpy.ndarray:
     """Performs an artificial scan of source_image with movement artefacts.
 
     :param source_image: specifies the source image of which the artificial scan is performed
@@ -21,7 +23,7 @@ def apply_artefact(source_image: numpy.ndarray, width: int, height: int, movemen
     :return: scan result
     """
     source_height, source_width = source_image.shape
-    destination_image = numpy.zeros((width, height))
+    destination_image = numpy.full((width, height), None)
     x_offset = (source_width - width) // 2
     y_offset = (source_height - height) // 2
     t = 0.0
@@ -35,7 +37,7 @@ def apply_artefact(source_image: numpy.ndarray, width: int, height: int, movemen
             destination_image[y, x] = source_image[
                 y + y_offset + y_movement, x + x_offset + x_movement
             ]
-    return destination_image
+    return destination_image.astype(out_type)
 
 
 def generate_checkerboard_image(width: int, height: int, size: int) -> numpy.ndarray:
