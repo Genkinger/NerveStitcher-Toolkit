@@ -122,10 +122,64 @@ images = np.insert(images, 0, image_transform.generate_checkerboard_image(384, 3
 robustness_data = extract_robustness_data(images, scale=0.75, movements=movements)
 
 
-with open("./data/robustness_data.pkl", "w+") as pklfile:
-    pickle.dump(robustness_data, pklfile)
+def viz_robustness_data(d: RobustnessData):
+    rows = 2
+    cols = len(d.artefacts) + 1
+    fig = plt.figure(figsize=(10, 4))
+    ax1 = fig.add_subplot(rows, cols, 1)
+    ax1.imshow(d.original.image, cmap="Greys_r")
+    # h, w = d.original.image.shape
+    # ax1.axhline(h * 0.125, xmin=0.125, xmax=0.875, color="blue", lw=2)
+    # ax1.axhline(h * 0.875, xmin=0.125, xmax=0.875, color="blue", lw=2)
+    # ax1.axvline(w * 0.125, ymin=0.125, ymax=0.875, color="blue", lw=2)
+    # ax1.axvline(w * 0.875, ymin=0.125, ymax=0.875, color="blue", lw=2)
+    ax1.scatter(
+        d.original.superpoint_data.coordinates[:, 0],
+        d.original.superpoint_data.coordinates[:, 1],
+        marker="x",
+        color="orange",
+        s=15,
+    )
+    ax1.set_xticks([])
+    ax1.set_yticks([])
+    for i, (a, e) in enumerate(zip(d.artefacts, d.embeddings)):
+        ax_a = fig.add_subplot(rows, cols, i + 2)
+        ax_a.imshow(a.image, cmap="Greys_r")
+        ax_a.scatter(
+            a.superpoint_data.coordinates[:, 0],
+            a.superpoint_data.coordinates[:, 1],
+            marker="x",
+            color="magenta",
+            s=15,
+        )
+        ax_a.set_xticks([])
+        ax_a.set_yticks([])
+        ax_e = fig.add_subplot(rows, cols, i + 2 + cols)
+        ax_e.imshow(e.image, cmap="Greys")
+        ax_e.scatter(
+            e.superpoint_data.coordinates[:, 0],
+            e.superpoint_data.coordinates[:, 1],
+            marker="x",
+            color="lightblue",
+            s=15,
+        )
+        ax_e.set_xticks([])
+        ax_e.set_yticks([])
+    fig.tight_layout()
+    return fig
 
-# # TODO: Now we need to see how many points of the retransformed coordinates are contained within the transformed data. After that we need to compare the descriptors first by vector distance, then by SuperGlue
+
+# code.interact(local=locals())
+# for d in robustness_data:
+#     fig = viz_robustness_data(d)
+#     fig.show()
+#     plt.show()
+
+
+# with open("./data/robustness_data.pkl", "w+") as pklfile:
+#     pickle.dump(robustness_data, pklfile)
+
+# # # TODO: Now we need to see how many points of the retransformed coordinates are contained within the transformed data. After that we need to compare the descriptors first by vector distance, then by SuperGlue
 statistics = []
 for rd in robustness_data:
     statistics_local = []

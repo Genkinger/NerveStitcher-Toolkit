@@ -26,4 +26,4 @@ def load_images_in_directory(
 
 def preprocess_images(images: numpy.ndarray):
     average = numpy.average(images, axis=0)
-    return images / average  # * numpy.average(average)
+    return images / average * numpy.average(average)

@@ -13,15 +13,26 @@ def visualize_matches(image_a, image_b, coordinates_a, coordinates_b):
     plt.show()
 
 
-def image_grid_with_coordinates(images, coordinates, rows, columns, scores, colors="magenta"):
+def image_grid_with_coordinates(
+    images, coordinates, rows, columns, size, colors="magenta", marker="x"
+):
     fig, ax = plt.subplots(rows, columns, squeeze=False)
     row, col = 0, 0
     for i, image in enumerate(images):
         color = colors[i] if type(colors) is list else colors
-        ax[row % rows, col % columns].imshow(image, cmap="Greys_r")
-        ax[row % rows, col % columns].scatter(
-            coordinates[i][:, 0], coordinates[i][:, 1], s=scores, c=color
+        im = ax[row % rows, col % columns].imshow(image, cmap="Greys_r", vmin=0, vmax=1)
+        sp = ax[row % rows, col % columns].scatter(
+            coordinates[i][:, 0],
+            coordinates[i][:, 1],
+            s=size,
+            c=color,
+            marker=marker,
+            cmap="gnuplot",
         )
+        ax[row % rows, col % columns].set_xticks([])
+        ax[row % rows, col % columns].set_yticks([])
+        fig.colorbar(sp, ax=ax[row % rows, col % columns])
+        fig.tight_layout()
         col += 1
         if col % columns == 0:
             row += 1
