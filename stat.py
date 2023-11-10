@@ -8,6 +8,9 @@ import seaborn as sns
 import tomllib
 from sklearn import cluster
 from sklearn import decomposition
+import config
+from fusion import MatchData
+import code
 
 
 def sort_ip_data_by_score(data: SuperPointData):
@@ -40,82 +43,110 @@ def calculate_statistics_for_ip_data(list_of_data: list[SuperPointData]):
     return pd.DataFrame(data=output).reset_index()
 
 
-def calculate_statistics_for_match_data(list_of_data: list[SuperGlueData], threshold: float = 0.80):
+def calculate_statistics_for_match_data(
+    list_of_data: list[MatchData], threshold: float = config.MATCHING_THRESHOLD
+):
     output = {
         "mean_score": [],
         "median_score": [],
         "std_score": [],
         "var_score": [],
+        "min_score": [],
+        "max_score": [],
         "valid_count": [],
-        "mean_score_vs_1": [],
-        "mean_score_vs_2": [],
-        "mean_score_vs_3": [],
-        "mean_score_vs_4": [],
-        "std_score_vs_1": [],
-        "std_score_vs_2": [],
-        "std_score_vs_3": [],
-        "std_score_vs_4": [],
-        "var_score_vs_1": [],
-        "var_score_vs_2": [],
-        "var_score_vs_3": [],
-        "var_score_vs_4": [],
-        "valid_count_vs_1": [],
-        "valid_count_vs_2": [],
-        "valid_count_vs_3": [],
-        "valid_count_vs_4": [],
+        # "mean_score_vs_1": [],
+        # "mean_score_vs_2": [],
+        # "mean_score_vs_3": [],
+        # "mean_score_vs_4": [],
+        # "std_score_vs_1": [],
+        # "std_score_vs_2": [],
+        # "std_score_vs_3": [],
+        # "std_score_vs_4": [],
+        # "var_score_vs_1": [],
+        # "var_score_vs_2": [],
+        # "var_score_vs_3": [],
+        # "var_score_vs_4": [],
+        # "valid_count_vs_1": [],
+        # "valid_count_vs_2": [],
+        # "valid_count_vs_3": [],
+        # "valid_count_vs_4": [],
+        "transform_inlier_ratio": [],
     }
     for data in list_of_data:
-        scores = np.exp(data.scores[:-1, :-1])
-        height, _ = scores.shape
-        slice_height = height // 4
-        scores_vs_1 = scores[:slice_height, :]
-        scores_vs_2 = scores[slice_height : slice_height * 2, :]
-        scores_vs_3 = scores[slice_height * 2 : slice_height * 3, :]
-        scores_vs_4 = scores[slice_height * 3 :, :]
+        scores = np.exp(data.superglue_data.scores[:-1, :-1])
+        # height, _ = scores.shape
+
+        # slice_height = height // 4
+        # scores_vs_1 = scores[:slice_height, :]
+        # scores_vs_2 = scores[slice_height : slice_height * 2, :]
+        # scores_vs_3 = scores[slice_height * 2 : slice_height * 3, :]
+        # scores_vs_4 = scores[slice_height * 3 :, :]
 
         output["mean_score"].append(scores.mean())
         output["median_score"].append(np.median(scores))
         output["std_score"].append(scores.std())
         output["var_score"].append(scores.var())
         output["valid_count"].append(np.count_nonzero(scores > threshold))
-        output["mean_score_vs_1"].append(scores_vs_1.mean())
-        output["mean_score_vs_2"].append(scores_vs_2.mean())
-        output["mean_score_vs_3"].append(scores_vs_3.mean())
-        output["mean_score_vs_4"].append(scores_vs_4.mean())
-        output["std_score_vs_1"].append(scores_vs_1.std())
-        output["std_score_vs_2"].append(scores_vs_2.std())
-        output["std_score_vs_3"].append(scores_vs_3.std())
-        output["std_score_vs_4"].append(scores_vs_4.std())
-        output["var_score_vs_1"].append(scores_vs_1.var())
-        output["var_score_vs_2"].append(scores_vs_2.var())
-        output["var_score_vs_3"].append(scores_vs_3.var())
-        output["var_score_vs_4"].append(scores_vs_4.var())
-        output["valid_count_vs_1"].append(np.count_nonzero(scores_vs_1 > threshold))
-        output["valid_count_vs_2"].append(np.count_nonzero(scores_vs_2 > threshold))
-        output["valid_count_vs_3"].append(np.count_nonzero(scores_vs_3 > threshold))
-        output["valid_count_vs_4"].append(np.count_nonzero(scores_vs_4 > threshold))
+        output["min_score"].append(np.min(scores))
+        output["max_score"].append(np.max(scores))
+        # output["mean_score_vs_1"].append(scores_vs_1.mean())
+        # output["mean_score_vs_2"].append(scores_vs_2.mean())
+        # output["mean_score_vs_3"].append(scores_vs_3.mean())
+        # output["mean_score_vs_4"].append(scores_vs_4.mean())
+        # output["std_score_vs_1"].append(scores_vs_1.std())
+        # output["std_score_vs_2"].append(scores_vs_2.std())
+        # output["std_score_vs_3"].append(scores_vs_3.std())
+        # output["std_score_vs_4"].append(scores_vs_4.std())
+        # output["var_score_vs_1"].append(scores_vs_1.var())
+        # output["var_score_vs_2"].append(scores_vs_2.var())
+        # output["var_score_vs_3"].append(scores_vs_3.var())
+        # output["var_score_vs_4"].append(scores_vs_4.var())
+        # output["valid_count_vs_1"].append(np.count_nonzero(scores_vs_1 > threshold))
+        # output["valid_count_vs_2"].append(np.count_nonzero(scores_vs_2 > threshold))
+        # output["valid_count_vs_3"].append(np.count_nonzero(scores_vs_3 > threshold))
+        # output["valid_count_vs_4"].append(np.count_nonzero(scores_vs_4 > threshold))
+        output["transform_inlier_ratio"].append(
+            np.count_nonzero(data.inliers) / len(data.coordinates_a)
+        )
 
     return pd.DataFrame(data=output).reset_index()
 
 
-artefacts = {}
-with open("./data/artefacts.toml", "rb") as tf:
-    artefacts = tomllib.load(tf)
+# ip_data = fusion.load_interest_point_data("./data/a3_ip_0.005.pkl")
+# match_data = fusion.load_raw_match_matrix("./data/a3_match.pkl")
+# match_data = [match_data[i, i + 1] for i in range(len(match_data) - 1)]
 
-ip_data = fusion.load_interest_point_data("./data/a3_ip_0.005.pkl")
-match_data = fusion.load_raw_match_matrix("./data/a3_match.pkl")
-match_data = [match_data[i, i + 1] for i in range(len(match_data) - 1)]
 
-ip_stats = calculate_statistics_for_ip_data(ip_data)
-match_stats = calculate_statistics_for_match_data(match_data)
+# ip_stats = calculate_statistics_for_ip_data(ip_data)
+# match_stats = calculate_statistics_for_match_data(match_data)
 
-# match_stats = match_stats.melt("index")
+# ip_stats.to_csv("./data/a3_ip_stats.csv")
+# match_stats.to_csv("./data/a3_match_stats.csv")
 
-sns.set_theme()
-sns.relplot(
-    match_stats.loc[
-        :100, ["valid_count_vs_1", "valid_count_vs_2", "valid_count_vs_3", "valid_count_vs_4"]
-    ],
-    kind="scatter",
-)
-plt.show()
+ip_paths = [
+    "./data/ipdata/EGT7_001-A_4.pkl",
+    "./data/ipdata/EGT6_005-G_4.pkl",
+    "./data/ipdata/EGT6_008-S_3.pkl",
+    "./data/ipdata/EGT6_009-S_2.pkl",
+    "./data/ipdata/EGT7_001-A_3.pkl",
+    "./data/ipdata/EGT7_001-A_4.pkl",
+]
+match_paths = [
+    "./data/matchdata/EGT7_001-A_4.pkl",
+    "./data/matchdata/EGT6_005-G_4.pkl",
+    "./data/matchdata/EGT6_008-S_3.pkl",
+    "./data/matchdata/EGT6_009-S_2.pkl",
+    "./data/matchdata/EGT7_001-A_3.pkl",
+    "./data/matchdata/EGT7_001-A_4.pkl",
+]
+
+for p in ip_paths:
+    ipdata = fusion.load_interest_point_data(p)
+    stats = calculate_statistics_for_ip_data(ipdata)
+    stats.to_csv(p.replace("pkl", "csv"))
+
+for p in match_paths:
+    match_data = fusion.load_raw_match_matrix(p)
+    diagonal_1 = [match_data[i, i + 1] for i in range(len(match_data) - 1)]
+    stats = calculate_statistics_for_match_data(diagonal_1)
+    stats.to_csv(p.replace("pkl", "csv"))

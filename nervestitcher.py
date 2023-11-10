@@ -8,6 +8,7 @@ from os import listdir
 from os.path import join, splitext
 
 torch.set_grad_enabled(False)
+
 superpoint = superpoint.SuperPoint()
 superpoint.load_weights("./weights/superpoint.pth")
 superglue = superglue.SuperGlue()

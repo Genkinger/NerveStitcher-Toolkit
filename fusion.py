@@ -4,8 +4,20 @@ import pickle
 import cv2
 import config
 import log
+from typing import NamedTuple
+from superpoint import SuperPointData
+from superglue import SuperGlueData
+import code
 
 logger = log.get_logger(__name__)
+
+
+class MatchData(NamedTuple):
+    superglue_data: SuperGlueData
+    coordinates_a: numpy.ndarray
+    coordinates_b: numpy.ndarray
+    affine_transform: numpy.ndarray
+    inliers: numpy.ndarray
 
 
 def generate_cos2_weight_image(width: int, height: int):
@@ -23,7 +35,7 @@ def save_interest_point_data(path, superpoint_data_list):
         pickle.dump(superpoint_data_list, picklefile)
 
 
-def load_interest_point_data(path):
+def load_interest_point_data(path) -> list[SuperPointData]:
     with open(path, "rb") as picklefile:
         superpoint_data_list = pickle.load(picklefile)
         return superpoint_data_list
@@ -38,16 +50,8 @@ def generate_interest_point_data(images, threshold=config.SCORE_THRESHOLD):
     return superpoint_data_list
 
 
-def generate_local_transforms_from_coordinate_pair_list(coordinate_pair_list):
-    transforms = []
-    for coordinate_pair in coordinate_pair_list:
-        transform = cv2.estimateAffinePartial2D(coordinate_pair[0], coordinate_pair[1])
-        transforms.append(transform[0])
-    return transforms
-
-
 def generate_raw_match_data(
-    superpoint_data_list,
+    superpoint_data_list: list[SuperPointData],
     diagonals=0,
     threshold=config.MATCHING_THRESHOLD,
 ):
@@ -58,11 +62,33 @@ def generate_raw_match_data(
     for i in range(n):
         for j in range(i + 1, min(i + 1 + count, n)):
             logger.info(f"Matching {i} against {j}")
-            superglue_data = ns.superglue(
+            superglue_data: SuperGlueData = ns.superglue(
                 superpoint_data_list[i], superpoint_data_list[j], threshold
             )
-            raw_match_matrix[i][j] = superglue_data
+
+            valid = superglue_data.indices_a > -1
+            coordinates_a = superpoint_data_list[i].coordinates[valid]
+            coordinates_b = superpoint_data_list[j].coordinates[superglue_data.indices_a[valid]]
+            transform, inliers = None, None
+            try:
+                transform, inliers = cv2.estimateAffinePartial2D(coordinates_a, coordinates_b)
+            except:
+                logger.warn(f"Something went wrong when calculating transform between {i} and {j}")
+            match_data = MatchData(superglue_data, coordinates_a, coordinates_b, transform, inliers)
+            raw_match_matrix[i][j] = match_data
     return raw_match_matrix
+
+
+def vsplit_coordinates(coordinates, splits: int, height: int):
+    parts = []
+    slice_height = height // splits
+    for i in range(splits):
+        parts.append([])
+        for c in coordinates:
+            if i * slice_height < c[1] and c[1] < (i + 1) * slice_height:
+                parts[i].append(c)
+    parts = [numpy.array(p) for p in parts]
+    return parts
 
 
 def save_raw_match_matrix(path, raw_match_matrix):
@@ -70,7 +96,7 @@ def save_raw_match_matrix(path, raw_match_matrix):
         pickle.dump(raw_match_matrix, picklefile)
 
 
-def load_raw_match_matrix(path):
+def load_raw_match_matrix(path) -> list[MatchData]:
     with open(path, "rb") as picklefile:
         raw_match_matrix = pickle.load(picklefile)
         return raw_match_matrix
