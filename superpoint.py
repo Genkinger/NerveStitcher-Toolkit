@@ -79,7 +79,7 @@ class SuperPoint(nn.Module):
         assert (
             len(input.shape) == 2
         ), "Only single grayscale image inputs are supported at the moment!"
-        input = torch.from_numpy(input[None, None, :]).float()
+        input = torch.from_numpy(input[None, None, :]).float().to(config.DEVICE)
 
         x = self.relu(self.conv1a(input))
         x = self.relu(self.conv1b(x))

@@ -199,18 +199,18 @@ class SuperGlue(nn.Module):
         """Run SuperGlue on a pair of keypoints and descriptors"""
         """Assume only one image per batch, different options not supported at this time!"""
 
-        desc0 = torch.from_numpy(superpoint_data_a.descriptors[None])
-        desc1 = torch.from_numpy(superpoint_data_b.descriptors[None])
-        kpts0 = torch.from_numpy(superpoint_data_a.coordinates[None])
-        kpts1 = torch.from_numpy(superpoint_data_b.coordinates[None])
+        desc0 = torch.from_numpy(superpoint_data_a.descriptors[None]).to(config.DEVICE)
+        desc1 = torch.from_numpy(superpoint_data_b.descriptors[None]).to(config.DEVICE)
+        kpts0 = torch.from_numpy(superpoint_data_a.coordinates[None]).to(config.DEVICE)
+        kpts1 = torch.from_numpy(superpoint_data_b.coordinates[None]).to(config.DEVICE)
 
         # Keypoint normalization.
         kpts0 = normalize_keypoints(kpts0, superpoint_data_a.width, superpoint_data_a.height)
         kpts1 = normalize_keypoints(kpts1, superpoint_data_b.width, superpoint_data_b.height)
 
         # Keypoint MLP encoder.
-        enc0 = self.kenc(kpts0, torch.from_numpy(superpoint_data_a.scores[None]))
-        enc1 = self.kenc(kpts1, torch.from_numpy(superpoint_data_b.scores[None]))
+        enc0 = self.kenc(kpts0, torch.from_numpy(superpoint_data_a.scores[None]).to(config.DEVICE))
+        enc1 = self.kenc(kpts1, torch.from_numpy(superpoint_data_b.scores[None]).to(config.DEVICE))
         desc0 = desc0 + enc0
         desc1 = desc1 + enc1
 
