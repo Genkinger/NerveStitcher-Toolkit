@@ -4,6 +4,7 @@ import seaborn as sns
 import numpy as np
 from data.artefacts_EGT7_001_A_3_snp import EGT7_001_A_3_snp_artefact_mask as a3_mask
 from sklearn.metrics import auc
+import code
 
 
 def per_image_artefact_mask_to_image_pair_mask(artefact_mask):
@@ -20,11 +21,13 @@ def per_image_artefact_mask_to_image_pair_mask(artefact_mask):
     return match_mask
 
 
-def roc(df, column, thresholds, artefact_mask):
+def roc(df, column, artefact_mask):
     tprs = []
     fprs = []
     p = np.array(artefact_mask).sum()
     n = len(artefact_mask) - p
+    steps = 100
+    thresholds = np.linspace(df[column].min(), df[column].max(), steps)
     for threshold in thresholds:
         indices = df.loc[df[column] < threshold]["index"].tolist()
         tp = 0
@@ -45,10 +48,26 @@ df = pd.read_csv("./data/matchdata/EGT7_001-A_3.csv")
 tprs, fprs = roc(
     df,
     "transform_inlier_ratio",
-    np.linspace(0, 1, 100),
     per_image_artefact_mask_to_image_pair_mask(a3_mask),
 )
-print(f"AUC: {auc(fprs,tprs)}")
-plt.plot(fprs, tprs)
-plt.plot([0, 1])
-plt.show()
+
+
+def plot_roc(tprs, fprs, title):
+    print(f"AUC: {auc(fprs,tprs)}")
+    plt.rc("grid", linestyle="dashed", color="lightgray")
+    plt.title(f"ROC - {title}")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.xticks(np.arange(0, 1.1, 0.1))
+    plt.yticks(np.arange(0, 1.1, 0.1))
+    plt.plot(fprs, tprs)
+    plt.xlim(-0.01, 1.01)
+    plt.ylim(-0.01, 1.01)
+    plt.plot([0, 1])
+    plt.grid(True)
+    auclabel = plt.text(0.82, 0.03, f"AUC: {auc(fprs,tprs):.3}")
+    auclabel.set_bbox(dict(facecolor="white"))
+    plt.show()
+
+
+plot_roc(tprs, fprs, "transform_inlier_ratio")
