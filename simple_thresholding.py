@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from data.artefacts_EGT7_001_A_3_snp import EGT7_001_A_3_snp_artefact_mask as a3_mask
+from data.artefacts_EGT7_001_A_4_snp import EGT7_001_A_4_snp_artefact_mask as a4_mask
 from sklearn.metrics import auc
 import code
 
@@ -29,7 +30,7 @@ def roc(df, column, artefact_mask):
     steps = 100
     thresholds = np.linspace(df[column].min(), df[column].max(), steps)
     for threshold in thresholds:
-        indices = df.loc[df[column] < threshold]["index"].tolist()
+        indices = df.loc[df[column] < threshold].index.tolist()
         tp = 0
         fp = 0
         for i in indices:
@@ -42,13 +43,13 @@ def roc(df, column, artefact_mask):
     return np.array(tprs), np.array(fprs)
 
 
-df = pd.read_csv("./data/matchdata/EGT7_001-A_3.csv")
+df = pd.read_csv("./data/matchdata/EGT7_001-A_4.csv")
 
 
 tprs, fprs = roc(
     df,
-    "transform_inlier_ratio",
-    per_image_artefact_mask_to_image_pair_mask(a3_mask),
+    "mean_score",
+    per_image_artefact_mask_to_image_pair_mask(a4_mask),
 )
 
 

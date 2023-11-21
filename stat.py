@@ -40,7 +40,7 @@ def calculate_statistics_for_ip_data(list_of_data: list[SuperPointData]):
         output["std_score"].append(data.scores.std())
         output["var_score"].append(data.scores.var())
 
-    return pd.DataFrame(data=output).reset_index()
+    return pd.DataFrame(data=output).reset_index(drop=True)
 
 
 def calculate_statistics_for_match_data(
@@ -109,7 +109,7 @@ def calculate_statistics_for_match_data(
             np.count_nonzero(data.inliers) / len(data.coordinates_a)
         )
 
-    return pd.DataFrame(data=output).reset_index()
+    return pd.DataFrame(data=output).reset_index(drop=True)
 
 
 # ip_data = fusion.load_interest_point_data("./data/a3_ip_0.005.pkl")
@@ -124,7 +124,7 @@ def calculate_statistics_for_match_data(
 # match_stats.to_csv("./data/a3_match_stats.csv")
 
 ip_paths = [
-    "./data/ipdata/EGT7_001-A_4.pkl",
+    "./data/ipdata/EGT6_001-A_2.pkl",
     "./data/ipdata/EGT6_005-G_4.pkl",
     "./data/ipdata/EGT6_008-S_3.pkl",
     "./data/ipdata/EGT6_009-S_2.pkl",
@@ -132,7 +132,7 @@ ip_paths = [
     "./data/ipdata/EGT7_001-A_4.pkl",
 ]
 match_paths = [
-    "./data/matchdata/EGT7_001-A_4.pkl",
+    "./data/matchdata/EGT6_001-A_2.pkl",
     "./data/matchdata/EGT6_005-G_4.pkl",
     "./data/matchdata/EGT6_008-S_3.pkl",
     "./data/matchdata/EGT6_009-S_2.pkl",
@@ -143,10 +143,10 @@ match_paths = [
 for p in ip_paths:
     ipdata = fusion.load_interest_point_data(p)
     stats = calculate_statistics_for_ip_data(ipdata)
-    stats.to_csv(p.replace("pkl", "csv"))
+    stats.to_csv(p.replace("pkl", "csv").replace("-", "_"), index=False)
 
 for p in match_paths:
     match_data = fusion.load_raw_match_matrix(p)
     diagonal_1 = [match_data[i, i + 1] for i in range(len(match_data) - 1)]
     stats = calculate_statistics_for_match_data(diagonal_1)
-    stats.to_csv(p.replace("pkl", "csv"))
+    stats.to_csv(p.replace("pkl", "csv").replace("-", "_"), index=False)
