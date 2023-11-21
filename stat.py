@@ -11,6 +11,7 @@ from sklearn import decomposition
 import config
 from fusion import MatchData
 import code
+import scipy.stats
 
 
 def sort_ip_data_by_score(data: SuperPointData):
@@ -29,6 +30,8 @@ def calculate_statistics_for_ip_data(list_of_data: list[SuperPointData]):
         "var_score": [],
         "min_score": [],
         "max_score": [],
+        "skew_score": [],
+        "kurtosis_score": [],
         "ip_count": [],
     }
     for data in list_of_data:
@@ -39,6 +42,8 @@ def calculate_statistics_for_ip_data(list_of_data: list[SuperPointData]):
         output["ip_count"].append(len(data.scores))
         output["std_score"].append(data.scores.std())
         output["var_score"].append(data.scores.var())
+        output["skew_score"].append(scipy.stats.skew(data.scores))
+        output["kurtosis_score"].append(scipy.stats.kurtosis(data.scores))
 
     return pd.DataFrame(data=output).reset_index(drop=True)
 
@@ -53,35 +58,22 @@ def calculate_statistics_for_match_data(
         "var_score": [],
         "min_score": [],
         "max_score": [],
-        "valid_count": [],
-        # "mean_score_vs_1": [],
-        # "mean_score_vs_2": [],
-        # "mean_score_vs_3": [],
-        # "mean_score_vs_4": [],
-        # "std_score_vs_1": [],
-        # "std_score_vs_2": [],
-        # "std_score_vs_3": [],
-        # "std_score_vs_4": [],
-        # "var_score_vs_1": [],
-        # "var_score_vs_2": [],
-        # "var_score_vs_3": [],
-        # "var_score_vs_4": [],
-        # "valid_count_vs_1": [],
-        # "valid_count_vs_2": [],
-        # "valid_count_vs_3": [],
-        # "valid_count_vs_4": [],
+        "skew_score": [],
+        "kurtosis_score": [],
+        "mean_score_log": [],
+        "median_score_log": [],
+        "std_score_log": [],
+        "var_score_log": [],
+        "min_score_log": [],
+        "max_score_log": [],
+        "skew_score_log": [],
+        "kurtosis_score_log": [],
         "transform_inlier_ratio": [],
+        "valid_count": [],
     }
     for data in list_of_data:
-        scores = np.exp(data.superglue_data.scores[:-1, :-1])
-        # height, _ = scores.shape
-
-        # slice_height = height // 4
-        # scores_vs_1 = scores[:slice_height, :]
-        # scores_vs_2 = scores[slice_height : slice_height * 2, :]
-        # scores_vs_3 = scores[slice_height * 2 : slice_height * 3, :]
-        # scores_vs_4 = scores[slice_height * 3 :, :]
-
+        scores_log = data.superglue_data.scores[:-1, :-1]
+        scores = np.exp(scores_log)
         output["mean_score"].append(scores.mean())
         output["median_score"].append(np.median(scores))
         output["std_score"].append(scores.std())
@@ -89,25 +81,19 @@ def calculate_statistics_for_match_data(
         output["valid_count"].append(np.count_nonzero(scores > threshold))
         output["min_score"].append(np.min(scores))
         output["max_score"].append(np.max(scores))
-        # output["mean_score_vs_1"].append(scores_vs_1.mean())
-        # output["mean_score_vs_2"].append(scores_vs_2.mean())
-        # output["mean_score_vs_3"].append(scores_vs_3.mean())
-        # output["mean_score_vs_4"].append(scores_vs_4.mean())
-        # output["std_score_vs_1"].append(scores_vs_1.std())
-        # output["std_score_vs_2"].append(scores_vs_2.std())
-        # output["std_score_vs_3"].append(scores_vs_3.std())
-        # output["std_score_vs_4"].append(scores_vs_4.std())
-        # output["var_score_vs_1"].append(scores_vs_1.var())
-        # output["var_score_vs_2"].append(scores_vs_2.var())
-        # output["var_score_vs_3"].append(scores_vs_3.var())
-        # output["var_score_vs_4"].append(scores_vs_4.var())
-        # output["valid_count_vs_1"].append(np.count_nonzero(scores_vs_1 > threshold))
-        # output["valid_count_vs_2"].append(np.count_nonzero(scores_vs_2 > threshold))
-        # output["valid_count_vs_3"].append(np.count_nonzero(scores_vs_3 > threshold))
-        # output["valid_count_vs_4"].append(np.count_nonzero(scores_vs_4 > threshold))
+        output["skew_score"].append(scipy.stats.skew(scores, axis=None))
+        output["kurtosis_score"].append(scipy.stats.kurtosis(scores, axis=None))
         output["transform_inlier_ratio"].append(
             np.count_nonzero(data.inliers) / len(data.coordinates_a)
         )
+        output["mean_score_log"].append(scores_log.mean())
+        output["median_score_log"].append(np.median(scores_log))
+        output["std_score_log"].append(scores_log.std())
+        output["var_score_log"].append(scores_log.var())
+        output["min_score_log"].append(np.min(scores_log))
+        output["max_score_log"].append(np.max(scores_log))
+        output["skew_score_log"].append(scipy.stats.skew(scores_log, axis=None))
+        output["kurtosis_score_log"].append(scipy.stats.kurtosis(scores_log, axis=None))
 
     return pd.DataFrame(data=output).reset_index(drop=True)
 
