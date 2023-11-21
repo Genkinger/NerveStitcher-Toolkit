@@ -2,6 +2,7 @@ import nervestitcher
 import sys
 import cv2
 from os.path import basename
+import pickle
 
 images = nervestitcher.load_images_in_directory(sys.argv[1])
 
@@ -15,6 +16,9 @@ while i < len(images):
     if key == ord("a"):
         print("pressed A")
         artefact_labels[i] = 1
+        i += 1
+    elif key == ord("o"):
+        artefact_labels[i] = 2
         i += 1
     elif key == ord("n"):
         print("pressed N")
@@ -35,9 +39,13 @@ while i < len(images):
         print(artefact_labels[:10])
         continue
 
-with open(f"./data/artefacts_{basename(sys.argv[1])}.py", "w+") as outfile:
-    outfile.write(f"{basename(sys.argv[1])}_artefact_mask = [")
-    for v in artefact_labels:
-        outfile.write(str(v))
-        outfile.write(",")
-    outfile.write("]")
+
+name = basename(sys.argv[1]).replace("-", "_")
+
+with open(f"./data/labels/{name}.pkl", "wb+") as outfile:
+    pickle.dump(artefact_labels, outfile)
+    # outfile.write(f"artefact_mask = [")
+    # for v in artefact_labels:
+    #     outfile.write(str(v))
+    #     outfile.write(",")
+    # outfile.write("]")
