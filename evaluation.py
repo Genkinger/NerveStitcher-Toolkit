@@ -49,7 +49,7 @@ df_m = pd.read_csv("./data/matchdata_full.csv")
 
 
 def kde_grid(d, row, hue, value):
-    g = sns.FacetGrid(data=d, row=row, hue=hue, aspect=10, height=0.75, legend_out=False)
+    g = sns.FacetGrid(data=d, row=row, hue=hue, aspect=10, height=0.6, legend_out=False)
     g.map(
         sns.kdeplot,
         value,
@@ -60,21 +60,23 @@ def kde_grid(d, row, hue, value):
         multiple="stack",
     )
 
-    def label(x, color, label):
+    def labeler(x, color, label):
         ax = plt.gca()
         if label == "True":
             ax.text(
                 0,
                 0.2,
                 x.iloc[0],
-                color="gray",
+                color="black",
                 fontweight="bold",
+                fontsize="small",
                 ha="center",
                 va="center",
                 transform=ax.transAxes,
             )
 
-    g.map(label, row)
+    g.map(labeler, row)
+    g.map(lambda x, color, label: plt.gca().set_ylim(0, 50), row)
     # xmin = d.groupby([row, hue])[value].quantile(0.005).min()
     # xmax = d.groupby([row, hue])[value].quantile(0.99).max()
     # print(xmin)
@@ -82,7 +84,7 @@ def kde_grid(d, row, hue, value):
     # for ax in g.figure.axes:
     #     ax.set_ylim(0, 1)
 
-    g.figure.subplots_adjust(hspace=0.25)
+    g.figure.subplots_adjust(hspace=0.14)
     g.set_titles("")
     g.set(xlabel=value.replace("_", " ").title())
     g.set(yticks=[], ylabel="")
@@ -92,24 +94,6 @@ def kde_grid(d, row, hue, value):
 
 
 # code.interact(local=locals())
-# hue = "has_artefact"
-# df = df_m
-# for col in df.columns:
-#     # g = kde_grid(df_ip, "dataset", "is_artefact", col)
-#     ax = sns.boxplot(data=df, x="dataset", hue=hue, y=col, fliersize=2)
-#     ax.set_title(col.replace("_", " ").title())
-#     plt.xticks(rotation=45)
-#     # ax.set_label("")
-#     # ax.set_xlabel(col.replace("_", " ").title())
-#     ax.set_xlabel("")
-#     ax.set_ylabel("")
-#     plt.subplots_adjust(bottom=0.2)
-#     ax.legend(title=hue.replace("_", " ").title())
-#     plt.grid(linestyle="dashed")
-#     # sns.despine(trim=True)
-#     ax.get_figure().savefig(f"./m_{col}_box.png")
-#     # plt.show()
-#     plt.clf()
 
 
 ###################################################
@@ -241,8 +225,8 @@ if_pipe = make_pipeline(StandardScaler(), IsolationForest())
 
 
 def one_class_svm_eval(X, y, prefix):
-    oc_svm_pipe.fit(X.drop(columns=["dataset", "has_artefact"]))
-    y_hat_oc_svm = oc_svm_pipe.predict(X.drop(columns=["dataset", "has_artefact"]))
+    oc_svm_pipe.fit(X)
+    y_hat_oc_svm = oc_svm_pipe.predict(X)
     y_hat_oc_svm = [0 if e > 0 else 1 for e in y_hat_oc_svm]
     oc_svm_stats = {}
     oc_svm_stats["f1"] = [f1_score(y, y_hat_oc_svm)]
@@ -253,7 +237,7 @@ def one_class_svm_eval(X, y, prefix):
     rocd = RocCurveDisplay.from_predictions(
         y, y_hat_oc_svm, plot_chance_level=True, name="One Class SVM"
     )
-    plt.savefig(f"./{prefix}_OneClassSVM_ROC.png")
+    plt.savefig(f"./output/{prefix}_OneClassSVM_ROC.png")
     stats = pd.DataFrame(data=oc_svm_stats)
     stats.to_latex(f"./output/{prefix}_OneClassSVM_STATS.tex", escape=True)
 
@@ -325,11 +309,38 @@ def eval_pipes(pipes, names, display_names, X, y):
 #     raw_threshold_pipe, X_ip.drop(columns=["dataset"]), "is_artefact", False, "IP"
 # )
 
-# one_class_svm_eval(X_m.drop(columns=["dataset", "has_artefact"]), y_m, "M")
-# one_class_svm_eval(X_ip.drop(columns=["dataset", "is_artefact"]), y_ip, "IP")
+one_class_svm_eval(X_m.drop(columns=["dataset", "has_artefact"]), y_m, "M")
+one_class_svm_eval(X_ip.drop(columns=["dataset", "is_artefact"]), y_ip, "IP")
 
 # if_eval(X_m.drop(columns=["dataset", "has_artefact"]), y_m, "M")
 # if_eval(X_ip.drop(columns=["dataset", "is_artefact"]), y_ip, "IP")
 
-lof_eval(X_m.drop(columns=["dataset", "has_artefact"]), y_m, "M")
-lof_eval(X_ip.drop(columns=["dataset", "is_artefact"]), y_ip, "IP")
+# lof_eval(X_m.drop(columns=["dataset", "has_artefact"]), y_m, "M")
+# lof_eval(X_ip.drop(columns=["dataset", "is_artefact"]), y_ip, "IP")
+
+# hue = "is_artefact"
+# df = X_ip
+# for col in df.columns:
+#     # ax = sns.violinplot(df, x="dataset", y=col, hue=hue, split=True, inner="quart")
+#     ax = sns.kdeplot(df, x=col, hue=hue, bw_adjust=0.5, common_norm=False, fill=True)
+#     # g = kde_grid(df, "dataset", hue, col)
+#     # ax = sns.boxplot(data=df, x="dataset", hue=hue, y=col, fliersize=2)
+#     ax.set_title(col.replace("_", " ").title(), fontweight="bold")
+
+#     # ax.set_xticklabels([], visible=False)
+#     # plt.xticks(rotation=45, fontsize="small")
+#     plt.yticks(fontsize="small")
+#     plt.xticks(fontsize="small")
+#     ax.set_label("")
+#     ax.set_xlabel(col.replace("_", " ").title(), fontsize=10)
+#     ax.set_xlabel("")
+#     ax.set_ylabel("")
+#     plt.tight_layout()
+#     # plt.subplots_adjust(bottom=0.025, right=0.975, left=0.075, top=0.95)
+#     ax.legend(["True", "False"], title=hue.replace("_", " ").title())
+#     plt.grid(linestyle="dashed")
+
+#     # sns.despine(trim=True)
+#     ax.get_figure().savefig(f"./ip_full_{col}_kde.png")
+#     # plt.show()
+#     plt.clf()
