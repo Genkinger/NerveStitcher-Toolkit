@@ -47,6 +47,8 @@ sns.set_palette("colorblind")
 df_ip = pd.read_csv("./data/ipdata_full.csv")
 df_m = pd.read_csv("./data/matchdata_full.csv")
 
+# code.interact(local=locals())
+
 
 def kde_grid(d, row, hue, value):
     g = sns.FacetGrid(data=d, row=row, hue=hue, aspect=10, height=0.6, legend_out=False)
@@ -198,6 +200,17 @@ X_m = df_m.loc[df_m["has_non_csnp"] == False].drop(columns=["has_non_csnp"])
 y_ip = X_ip["is_artefact"]
 y_m = X_m["has_artefact"]
 
+code.interact(local=locals())
+
+
+ax = sns.scatterplot(X_m, x="transform_inlier_ratio", y="max_score", hue="has_artefact")
+ax.set_xlabel("Transform Inlier Ratio")
+ax.set_ylabel("Max Score")
+plt.legend(title="Has Artefact")
+plt.tight_layout()
+plt.show()
+
+
 imbalance_ip = y_ip.mean()
 imbalance_m = y_m.mean()
 
@@ -309,8 +322,8 @@ def eval_pipes(pipes, names, display_names, X, y):
 #     raw_threshold_pipe, X_ip.drop(columns=["dataset"]), "is_artefact", False, "IP"
 # )
 
-one_class_svm_eval(X_m.drop(columns=["dataset", "has_artefact"]), y_m, "M")
-one_class_svm_eval(X_ip.drop(columns=["dataset", "is_artefact"]), y_ip, "IP")
+# one_class_svm_eval(X_m.drop(columns=["dataset", "has_artefact"]), y_m, "M")
+# one_class_svm_eval(X_ip.drop(columns=["dataset", "is_artefact"]), y_ip, "IP")
 
 # if_eval(X_m.drop(columns=["dataset", "has_artefact"]), y_m, "M")
 # if_eval(X_ip.drop(columns=["dataset", "is_artefact"]), y_ip, "IP")

@@ -10,6 +10,7 @@ import code
 import visualization
 import pickle
 import pandas as pd
+from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes, mark_inset
 
 
 @dataclass
@@ -125,6 +126,16 @@ def extract_robustness_data(images, scale=0.75, movements=[]):
                 numpy.object_,
             )
             embedding_data = extract_data_from_embedding(artefacted_embedding)
+            # img = numpy.zeros_like(artefacted_embedding, numpy.float32)
+            # for y in range(artefacted_embedding.shape[0]):
+            #     for x in range(artefacted_embedding.shape[1]):
+            #         img[y, x] = 0 if artefacted_embedding[y, x] is None else 1
+            # plt.imshow(img, cmap="Greys_r")
+            # plt.show()
+            # plt.imshow(embedding_data.image, cmap="Greys_r")
+            # plt.tight_layout()
+            # plt.show()
+
             rd.embeddings.append(embedding_data)
         robustness_data.append(rd)
     return robustness_data
@@ -133,9 +144,44 @@ def extract_robustness_data(images, scale=0.75, movements=[]):
 def viz_robustness_data(d: RobustnessData):
     rows = 1
     cols = 1  # len(d.artefacts) + 1
-    fig = plt.figure(figsize=(5, 5))
-    ax1 = fig.add_subplot(rows, cols, 1)
-    ax1.imshow(d.artefacts[3].image, cmap="Greys_r")
+    plt.figure(
+        figsize=(d.original.superpoint_data.width / 100, d.original.superpoint_data.height / 100),
+        dpi=100,
+    )
+    plt.imshow(d.original.image, cmap="Greys_r")
+    plt.scatter(
+        d.original.superpoint_data.coordinates[:, 0],
+        d.original.superpoint_data.coordinates[:, 1],
+        marker="x",
+        color="orange",
+        s=20,
+    )
+    plt.subplots_adjust(0, 0, 1, 1, 0, 0)
+    plt.axis("off")
+    plt.show()
+    for a in d.artefacts:
+        plt.figure(
+            figsize=(
+                a.superpoint_data.width / 100,
+                a.superpoint_data.height / 100,
+            ),
+            dpi=100,
+        )
+        plt.imshow(a.image, cmap="Greys_r")
+        plt.scatter(
+            a.superpoint_data.coordinates[:, 0],
+            a.superpoint_data.coordinates[:, 1],
+            marker="x",
+            color="magenta",
+            s=20,
+        )
+        plt.subplots_adjust(0, 0, 1, 1, 0, 0)
+        plt.axis("off")
+        plt.show()
+
+    # fig = plt.figure(figsize=(5, 5))
+    # ax1 = fig.add_subplot(rows, cols, 1)
+    # ax1.imshow(d.artefacts[3].image, cmap="Greys_r")
     # h, w = d.original.image.shape
     # ax1.axhline(h * 0.125, xmin=0.125, xmax=0.875, color="blue", lw=2)
     # ax1.axhline(h * 0.875, xmin=0.125, xmax=0.875, color="blue", lw=2)
@@ -148,8 +194,6 @@ def viz_robustness_data(d: RobustnessData):
     #     color="orange",
     #     s=15,
     # )
-    ax1.set_xticks([])
-    ax1.set_yticks([])
     # # for i, (a, e) in enumerate(zip(d.artefacts, d.embeddings)):
     #     ax_a = fig.add_subplot(rows, cols, i + 2)
     #     ax_a.imshow(a.image, cmap="Greys_r")
@@ -174,7 +218,6 @@ def viz_robustness_data(d: RobustnessData):
     #     ax_e.set_xticks([])
     #     ax_e.set_yticks([])
     # fig.tight_layout()
-    return fig
 
 
 # def get_coordinates_and_descriptors_from_superglue_data(
@@ -203,10 +246,16 @@ movements = [
 
 images = nervestitcher.load_images_in_directory(
     "/mnt/home/leah/Datasets/Preprocessed/robustness_testing_set/"
-)
+)[20:21]
 # images = np.insert(images, 0, image_transform.generate_checkerboard_image(384, 384, 12), axis=0)
 
 robustness_data = extract_robustness_data(images, scale=0.75, movements=movements)
+
+for d in robustness_data:
+    viz_robustness_data(d)
+
+
+exit(0)
 
 statistics = []
 max_distance = 3
@@ -226,6 +275,13 @@ for rd in robustness_data:
             a.superpoint_data.coordinates, e.superpoint_data.coordinates
         )
         matches = distances <= max_distance
+
+        # plt.imshow(matches, cmap="gnuplot")
+        # # plt.imshow(distances, cmap="gnuplot")
+        # plt.colorbar()
+        # plt.imshow(e.image, cmap="Greys_r")
+        # plt.tight_layout()
+        # plt.show()
 
         only_in_artefact = numpy.argwhere(numpy.count_nonzero(matches, axis=1) == 0)
         only_in_original = numpy.argwhere(numpy.count_nonzero(matches, axis=0) == 0)
@@ -303,4 +359,4 @@ for d in statistics:
     split_dict.append(new_dict)
 
 df = pd.DataFrame(split_dict)
-df.to_csv("./data/robustnes_statistics.csv")
+# df.to_csv("./data/robustnes_statistics.csv")
